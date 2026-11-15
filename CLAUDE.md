@@ -7,7 +7,8 @@
 ホーム画面ウィジェットで「今年が残り何%か」を表示するシンプルな Android アプリ。
 
 - 主機能：ウィジェットに「残り◯%」「進捗バー」「残り日数」を表示
-- アプリ本体：説明と「ウィジェットを追加」ボタンのみの最小画面（インストール後の初回起動で stopped state を解除する役割も兼ねる）
+- アプリ本体：残り%の表示、**その年の目標（複数・達成チェック付き）**、説明と「ウィジェットを追加」ボタン（インストール後の初回起動で stopped state を解除する役割も兼ねる）
+- 年の目標はアプリ本体だけに表示し、**ウィジェットには表示しない**。端末内（SharedPreferences、年ごと）に保存し、通信はしない
 - 通信・権限：不要。完全オフライン
 - 設定画面：初期リリースでは作らない
 
@@ -28,13 +29,16 @@
 ```
 app/src/main/java/.../
 ├─ YearProgress.kt            … 計算ロジック（Android 非依存の純 Kotlin）
+├─ Goals.kt                  … 年の目標のモデルと操作（純 Kotlin）
+├─ GoalRepository.kt         … 目標の保存（SharedPreferences、キー goals_<年>）
+├─ GoalsSection.kt           … 目標の一覧・追加／編集／削除 UI（Compose）
 ├─ widget/
 │   ├─ YearWidgetProvider.kt  … AppWidgetProvider（RemoteViews を組み立てて即時反映、updateAll）
 │   └─ TimeChangeReceiver.kt  … 時刻・タイムゾーン変更時に updateAll
-└─ MainActivity.kt            … 説明 ＋ requestPinAppWidget ボタン
+└─ MainActivity.kt            … 残り%・目標・説明 ＋ requestPinAppWidget ボタン
 app/src/main/res/xml/year_widget_info.xml
 app/src/main/res/layout/widget_large.xml / widget_small.xml  … 4×4 / 1×2 レイアウト
-app/src/test/.../YearProgressTest.kt
+app/src/test/.../YearProgressTest.kt, GoalsTest.kt
 docs/design_handoff_year_progress_widget/  … UI/UX 設計資料（「デザイン（確定）」参照）
 ```
 

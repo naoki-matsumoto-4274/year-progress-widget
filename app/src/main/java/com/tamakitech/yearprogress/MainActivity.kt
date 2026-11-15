@@ -21,6 +21,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
@@ -29,6 +31,8 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -44,7 +48,7 @@ import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.tamakitech.yearprogress.widget.YearWidgetProvider
 
-private object AppColors {
+internal object AppColors {
     val Background = Color(0xFF161826)
     val TextPrimary = Color(0xFFE9E9ED)
     val TextYear = Color(0xFF9397AB)
@@ -56,22 +60,33 @@ private object AppColors {
     val Accent = Color(0xFF9184D9)
     val AccentText = Color(0xFFD2CEFD)
     val AccentPressed = Color(0xFFB5ABFC)
+    val Surface = Color(0xFF232532)
 }
 
 /** 数字を等幅にする（tnum）。 */
 private const val TABULAR_NUMS = "tnum"
 
 class MainActivity : ComponentActivity() {
+    /** 画面に出す残り。開き直したとき（onResume）に再計算する。 */
+    private var progress by mutableStateOf(calcYearProgress())
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        val progress = calcYearProgress()
         val manager = getSystemService(AppWidgetManager::class.java)
         val canPin = manager?.isRequestPinAppWidgetSupported == true
+        val goalRepository = GoalRepository(this)
         setContent {
-            MaterialTheme(colorScheme = darkColorScheme(background = AppColors.Background)) {
+            MaterialTheme(colorScheme = appColorScheme()) {
+                val year = progress.year
+                var goals by remember(year) { mutableStateOf(goalRepository.load(year)) }
                 MainScreen(
                     progress = progress,
+                    goals = goals,
+                    onGoalsChange = { updated ->
+                        goals = updated
+                        goalRepository.save(year, updated)
+                    },
                     canPin = canPin,
                     onAddWidget = {
                         manager?.requestPinAppWidget(
@@ -87,53 +102,68 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        progress = calcYearProgress()
         // アプリを開いたらウィジェットも最新の値に揃える
         YearWidgetProvider.updateAll(this)
     }
 }
 
+private fun appColorScheme() = darkColorScheme(
+    primary = AppColors.Accent,
+    onPrimary = AppColors.Background,
+    background = AppColors.Background,
+    surface = AppColors.Surface,
+    surfaceContainerHigh = AppColors.Surface,
+    onSurface = AppColors.TextPrimary,
+    onSurfaceVariant = AppColors.TextSecondary,
+    outline = AppColors.TextTick,
+    error = AppColors.BarRed,
+)
+
 @Composable
-private fun MainScreen(progress: YearProgress, canPin: Boolean, onAddWidget: () -> Unit) {
-    Box(
+private fun MainScreen(
+    progress: YearProgress,
+    goals: List<Goal>,
+    onGoalsChange: (List<Goal>) -> Unit,
+    canPin: Boolean,
+    onAddWidget: () -> Unit,
+) {
+    Column(
         Modifier
             .fillMaxSize()
             .background(AppColors.Background)
+            .verticalScroll(rememberScrollState())
             .safeDrawingPadding()
-            .padding(start = 28.dp, end = 28.dp, top = 28.dp, bottom = 28.dp),
+            .padding(28.dp),
     ) {
-        Column(Modifier.fillMaxSize()) {
-            Text(
-                stringResource(R.string.app_name),
-                color = AppColors.TextYear,
-                fontSize = 14.sp,
-            )
-            Column(
-                Modifier
-                    .weight(1f)
-                    .fillMaxWidth(),
-                verticalArrangement = Arrangement.Center,
-            ) {
-                ProgressBlock(progress)
-            }
-            Text(
-                stringResource(R.string.main_description),
-                color = AppColors.TextSecondary,
-                fontSize = 14.sp,
-                lineHeight = (14 * 1.7).sp,
-            )
-            if (canPin) {
-                Spacer(Modifier.height(20.dp))
-                AddButton(onAddWidget)
-            }
-            Spacer(Modifier.height(12.dp))
-            Text(
-                stringResource(R.string.add_hint),
-                color = AppColors.TextTick,
-                fontSize = 12.sp,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth(),
-            )
+        Text(
+            stringResource(R.string.app_name),
+            color = AppColors.TextYear,
+            fontSize = 14.sp,
+        )
+        Spacer(Modifier.height(48.dp))
+        ProgressBlock(progress)
+        Spacer(Modifier.height(48.dp))
+        GoalsSection(year = progress.year, goals = goals, onGoalsChange = onGoalsChange)
+        Spacer(Modifier.height(48.dp))
+        Text(
+            stringResource(R.string.main_description),
+            color = AppColors.TextSecondary,
+            fontSize = 14.sp,
+            lineHeight = (14 * 1.7).sp,
+        )
+        if (canPin) {
+            Spacer(Modifier.height(20.dp))
+            AddButton(onAddWidget)
         }
+        Spacer(Modifier.height(12.dp))
+        Text(
+            stringResource(R.string.add_hint),
+            color = AppColors.TextTick,
+            fontSize = 12.sp,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth(),
+        )
     }
 }
 
@@ -224,5 +254,17 @@ private fun AddButton(onClick: () -> Unit) {
 @Preview(widthDp = 412, heightDp = 915)
 @Composable
 private fun MainScreenPreview() {
-    MainScreen(progress = calcYearProgress(), canPin = true, onAddWidget = {})
+    MaterialTheme(colorScheme = appColorScheme()) {
+        MainScreen(
+            progress = calcYearProgress(),
+            goals = listOf(
+                Goal("1", "本を 24 冊読む", done = true),
+                Goal("2", "フルマラソンを完走する"),
+                Goal("3", "毎朝 30 分の英語学習を続ける"),
+            ),
+            onGoalsChange = {},
+            canPin = true,
+            onAddWidget = {},
+        )
+    }
 }
