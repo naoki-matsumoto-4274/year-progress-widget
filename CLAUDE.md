@@ -34,10 +34,11 @@ app/src/main/java/.../
 ├─ GoalsSection.kt           … 目標の一覧・追加／編集／削除 UI（Compose）
 ├─ widget/
 │   ├─ YearWidgetProvider.kt  … AppWidgetProvider（RemoteViews を組み立てて即時反映、updateAll）
+│   ├─ YearWideWidgetProvider.kt … 横長（4×1）で一覧に出すためのエントリ（描画は共通）
 │   └─ TimeChangeReceiver.kt  … 時刻・タイムゾーン変更時に updateAll
 └─ MainActivity.kt            … 残り%・目標・説明 ＋ requestPinAppWidget ボタン
 app/src/main/res/xml/year_widget_info.xml
-app/src/main/res/layout/widget_large.xml / widget_small.xml  … 4×4 / 1×2 レイアウト
+app/src/main/res/layout/widget_large.xml / widget_small.xml / widget_wide.xml  … 4×4 / 1×2 / 4×1 レイアウト
 app/src/test/.../YearProgressTest.kt, GoalsTest.kt
 docs/design_handoff_year_progress_widget/  … UI/UX 設計資料（「デザイン（確定）」参照）
 ```
@@ -94,7 +95,8 @@ fun calcYearProgress(clock: Clock = Clock.systemDefaultZone()): YearProgress {
 
 - Jetpack Glance は使わない。Glance は描画を WorkManager（遅延可能なジョブ）で実行するため、ほとんど開かれないアプリは App Standby Bucket の制限で描画が最大 1 日程度後回しにされ、ウィジェットの値が古いまま残る不具合が実機で起きた（v1.0.1）
 - `onUpdate` / `onAppWidgetOptionsChanged` / `updateAll` の中で同期的に `RemoteViews` を組み立てて `updateAppWidget` する。描画のための遅延実行（WorkManager・コルーチンの非同期起動など）を挟まない
-- サイズ出し分け：Android 12+ は `RemoteViews(Map<SizeF, RemoteViews>)`（57×110 → 小、250×250 → 大）。11 以下は `OPTION_APPWIDGET_MIN_WIDTH` / `MAX_HEIGHT` で判定
+- サイズ出し分け：Android 12+ は `RemoteViews(Map<SizeF, RemoteViews>)`（57×110 → 1×2、180×40 → 4×1 横長、250×250 → 4×4）。11 以下は `OPTION_APPWIDGET_MIN_WIDTH` / `MAX_HEIGHT` で判定（高さ 110dp 未満かつ幅 180dp 以上 → 横長）
+- ウィジェット一覧には 2 項目を出す：通常版 `YearWidgetProvider`（初期 4×4、`year_widget_info.xml`）と横長版 `YearWideWidgetProvider`（初期 4×1、`year_widget_wide_info.xml`）。描画は共通で、`updateAll` は両方を更新する
 - 進捗バーは `ClipDrawable` を `ImageView` に置き、`setImageLevel`（0〜10000 = 残り割合）で塗る。横は左から、縦は下から
 - 配色はリソースで切り替える：`values` / `values-night` が固定色、`values-v31` / `values-night-v31` がダイナミックカラー（`@android:color/system_*`）。バー色（緑/赤）は常に固定色
 - アプリ本体を開いたとき（`onResume`）にも `updateAll` してウィジェットを揃える
@@ -129,7 +131,7 @@ README と本ファイルの記述が食い違う場合、**デザイン（見�
 
 要点：
 
-- サイズ：4×4（250×250dp〜）と 1×2（57×110dp〜、縦長）。1×1 円形表示は作らない
+- サイズ：4×4（250×250dp〜）と 1×2（57×110dp〜、縦長）、4×1（180×40dp〜、横長。デザイン README 外の追加仕様：左に年と「あと ◯%」、右に横バーと残り日数）。1×1 円形表示は作らない
 - 表記「あと 13.4%」、バーは「残り」を塗る（年末に向けて減る）
 - バー色：表示値（切り上げ後）> 30.0% → 緑（ダーク #57BC80 / ライト #14874E）、≤ 30.0% → 赤（#EA6A64 / #C13C3B）。バー色はダイナミックカラーに追従させない
 - 4×4：年 16sp / あと 18sp / 割合 88sp + % 36sp / バー 8dp / 1月・12月 12sp / 残り日数 18sp、パディング 24dp、下寄せ
