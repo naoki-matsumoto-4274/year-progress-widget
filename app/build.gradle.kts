@@ -12,8 +12,8 @@ android {
         applicationId = "com.tamakitech.yearprogress"
         minSdk = 26
         targetSdk = 36
-        versionCode = 4
-        versionName = "1.1.0"
+        versionCode = 5
+        versionName = "1.2.0"
     }
 
     // リリース署名。鍵はリポジトリに置かず、環境変数（CI では GitHub Secrets）から渡す。
